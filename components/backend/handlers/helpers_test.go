@@ -153,6 +153,46 @@ func TestParseRepoMap_V2Format(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "branch with leading/trailing whitespace is preserved as-is",
+			input: map[string]interface{}{
+				"input": map[string]interface{}{
+					"url":    "https://github.com/user/repo",
+					"branch": "  main  ",
+				},
+			},
+			want: types.SimpleRepo{
+				Input: &types.RepoLocation{
+					URL:    "https://github.com/user/repo",
+					Branch: types.StringPtr("  main  "), // Whitespace preserved (not trimmed)
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "output branch with leading/trailing whitespace is preserved",
+			input: map[string]interface{}{
+				"input": map[string]interface{}{
+					"url":    "https://github.com/user/repo",
+					"branch": "main",
+				},
+				"output": map[string]interface{}{
+					"url":    "https://github.com/user/fork",
+					"branch": "  feature  ",
+				},
+			},
+			want: types.SimpleRepo{
+				Input: &types.RepoLocation{
+					URL:    "https://github.com/user/repo",
+					Branch: types.StringPtr("main"),
+				},
+				Output: &types.RepoLocation{
+					URL:    "https://github.com/user/fork",
+					Branch: types.StringPtr("  feature  "), // Whitespace preserved
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "missing input field",
 			input: map[string]interface{}{
 				"output": map[string]interface{}{

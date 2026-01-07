@@ -33,10 +33,13 @@ spec:
                     input:
                       type: object
                       description: "Input repository configuration (source to clone)"
+                      required:
+                        - url
                       properties:
                         url:
                           type: string
                           description: "Git repository URL"
+                          minLength: 1
                         branch:
                           type: string
                           description: "Branch to checkout"
@@ -44,10 +47,13 @@ spec:
                     output:
                       type: object
                       description: "Output repository configuration (target for push). If not specified, pushes to input repo."
+                      required:
+                        - url
                       properties:
                         url:
                           type: string
                           description: "Git repository URL (typically a fork)"
+                          minLength: 1
                         branch:
                           type: string
                           description: "Branch to push to"

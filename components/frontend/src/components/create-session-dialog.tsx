@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Loader2, Plus, Trash2, GitBranch } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { sessionRepoSchema } from "@/lib/schemas/session-schemas";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -50,17 +51,7 @@ const formSchema = z.object({
   temperature: z.number().min(0).max(2),
   maxTokens: z.number().min(100).max(8000),
   timeout: z.number().min(60).max(1800),
-  repos: z.array(z.object({
-    input: z.object({
-      url: z.string().min(1, "URL is required").url("Must be a valid URL"),
-      branch: z.string().optional(),
-    }),
-    output: z.object({
-      url: z.string().min(1, "URL is required").url("Must be a valid URL"),
-      branch: z.string().optional(),
-    }).optional(),
-    autoPush: z.boolean().optional(),
-  })).optional(),
+  repos: z.array(sessionRepoSchema).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;

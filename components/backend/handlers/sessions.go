@@ -721,10 +721,12 @@ func CreateSession(c *gin.Context) {
 	}()
 
 	// Provision runner token using backend SA (requires elevated permissions for SA/Role/Secret creation)
+	// This is a non-fatal operation: if token provisioning fails here, the operator will create
+	// tokens during reconciliation as a fallback. The session is still created successfully.
 	if DynamicClient == nil || K8sClient == nil {
 		log.Printf("Warning: backend SA clients not available, skipping runner token provisioning for session %s/%s", project, name)
 	} else if err := provisionRunnerTokenForSession(c, K8sClient, DynamicClient, project, name); err != nil {
-		// Nonfatal: log and continue. Operator may retry later if implemented.
+		// Nonfatal: log and continue. Operator fallback: creates tokens during reconciliation.
 		log.Printf("Warning: failed to provision runner token for session %s/%s: %v", project, name, err)
 	}
 

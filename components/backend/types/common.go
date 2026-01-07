@@ -120,7 +120,9 @@ const DefaultPaginationLimit = 20
 // MaxPaginationLimit is the maximum allowed items per page
 const MaxPaginationLimit = 100
 
-// DefaultBranch is the default Git branch name used when no branch is specified
+// DefaultBranch is the default Git branch name used when no branch is specified.
+// Set to "main" to align with GitHub/GitLab industry standards (replacing legacy "master").
+// This default applies when cloning repositories without an explicit branch parameter.
 const DefaultBranch = "main"
 
 // NormalizePaginationParams ensures pagination params are within valid bounds

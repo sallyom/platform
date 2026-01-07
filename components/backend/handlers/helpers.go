@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"net/url"
 	"strings"
 	"time"
 
@@ -117,6 +118,18 @@ func ParseRepoMap(m map[string]interface{}) (types.SimpleRepo, error) {
 
 	if strings.TrimSpace(r.Input.URL) == "" {
 		return r, fmt.Errorf("input.url is required")
+	}
+
+	// Validate input URL format
+	if _, err := url.Parse(r.Input.URL); err != nil {
+		return r, fmt.Errorf("invalid input.url format: %w", err)
+	}
+
+	// Validate output URL format if present
+	if r.Output != nil && strings.TrimSpace(r.Output.URL) != "" {
+		if _, err := url.Parse(r.Output.URL); err != nil {
+			return r, fmt.Errorf("invalid output.url format: %w", err)
+		}
 	}
 
 	// Validate that output differs from input (if output is specified)

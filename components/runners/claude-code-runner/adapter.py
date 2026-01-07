@@ -1412,12 +1412,19 @@ class ClaudeCodeAdapter:
             )
             raise  # Re-raise so caller can track failures
 
-    async def _check_if_has_unpushed_commits(self, repo_dir: Path) -> bool:
+    async def _check_if_has_unpushed_commits(self, repo_dir: Path, repo_identifier: str = "") -> bool:
         """Check if current branch has unpushed commits.
+
+        Args:
+            repo_dir: Path to repository directory
+            repo_identifier: Repository name or URL for error messages (improves debugging)
 
         Returns True if there are commits that haven't been pushed to origin.
         This is used to detect if Claude forgot to push after committing.
         """
+        # Use repo_identifier for logging if provided, otherwise fall back to path
+        log_id = repo_identifier if repo_identifier else str(repo_dir)
+
         try:
             # Get current branch
             current_branch = await self._run_cmd(
@@ -1434,7 +1441,7 @@ class ClaudeCodeAdapter:
                 # 2. User manually detached HEAD
                 # Conservative approach: assume unpushed to avoid missing changes.
                 # Note: Fallback push will fail gracefully if there's no branch to push to.
-                logger.warning(f"{repo_dir}: Detached HEAD state, assuming unpushed")
+                logger.warning(f"{log_id}: Detached HEAD state, assuming unpushed")
                 return True
 
             # Check if branch exists on remote and count unpushed commits
@@ -1447,10 +1454,10 @@ class ClaudeCodeAdapter:
                 unpushed_count = int(result.strip() or "0")
 
                 if unpushed_count > 0:
-                    logger.info(f"{repo_dir}: {unpushed_count} unpushed commit(s) detected")
+                    logger.info(f"{log_id}: {unpushed_count} unpushed commit(s) detected")
                     return True
                 else:
-                    logger.info(f"{repo_dir}: All commits pushed to origin/{current_branch}")
+                    logger.info(f"{log_id}: All commits pushed to origin/{current_branch}")
                     return False
 
             except Exception as e:
@@ -1460,11 +1467,11 @@ class ClaudeCodeAdapter:
                 # 3. Git command error (corrupt repo, permissions issue)
                 # Conservative approach: assume unpushed to ensure changes aren't lost.
                 # Fallback will attempt push, which will create the remote branch if needed.
-                logger.warning(f"{repo_dir}: Branch '{current_branch}' may not exist on remote: {e}")
+                logger.warning(f"{log_id}: Branch '{current_branch}' may not exist on remote: {e}")
                 return True  # Assume unpushed if we can't verify
 
         except Exception as e:
-            logger.warning(f"Failed to check unpushed commits for {repo_dir}: {e}")
+            logger.warning(f"Failed to check unpushed commits for {log_id}: {e}")
             return True  # Assume unpushed to be safe
 
     async def _ensure_autopush_repos_pushed(self) -> AsyncIterator[BaseEvent]:
