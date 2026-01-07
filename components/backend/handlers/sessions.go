@@ -723,11 +723,25 @@ func CreateSession(c *gin.Context) {
 	// Provision runner token using backend SA (requires elevated permissions for SA/Role/Secret creation)
 	// This is a non-fatal operation: if token provisioning fails here, the operator will create
 	// tokens during reconciliation as a fallback. The session is still created successfully.
+	//
+	// Pattern: "Validate Then Escalate" (see .claude/patterns/k8s-client-usage.md)
+	// 1. Check user's RBAC permission to create ServiceAccounts (using user token)
+	// 2. If authorized, escalate to backend SA for actual resource creation
+	// 3. If unauthorized or provisioning fails, operator handles it during reconciliation
 	if DynamicClient == nil || K8sClient == nil {
 		log.Printf("Warning: backend SA clients not available, skipping runner token provisioning for session %s/%s", project, name)
-	} else if err := provisionRunnerTokenForSession(c, K8sClient, DynamicClient, project, name); err != nil {
-		// Nonfatal: log and continue. Operator fallback: creates tokens during reconciliation.
-		log.Printf("Warning: failed to provision runner token for session %s/%s: %v", project, name, err)
+	} else {
+		// Check if user has permission to create ServiceAccounts (RBAC validation using user token)
+		if canProvisionTokens(c, reqK8s, project) {
+			// User is authorized - escalate to backend SA for actual provisioning
+			if err := provisionRunnerTokenForSession(c, K8sClient, DynamicClient, project, name); err != nil {
+				// Nonfatal: log and continue. Operator fallback: creates tokens during reconciliation.
+				log.Printf("Warning: failed to provision runner token for session %s/%s: %v", project, name, err)
+			}
+		} else {
+			// User lacks permission - skip provisioning, operator will handle during reconciliation
+			log.Printf("User lacks permission to provision tokens in project %s, operator will handle token creation", project)
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -735,6 +749,30 @@ func CreateSession(c *gin.Context) {
 		"name":    name,
 		"uid":     created.GetUID(),
 	})
+}
+
+// canProvisionTokens checks if the user has permission to create ServiceAccounts in the project namespace.
+// This RBAC check validates authorization before escalating to backend SA for token provisioning.
+// Returns true if user is authorized, false if unauthorized or check fails.
+func canProvisionTokens(c *gin.Context, reqK8s kubernetes.Interface, project string) bool {
+	ssar := &authzv1.SelfSubjectAccessReview{
+		Spec: authzv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authzv1.ResourceAttributes{
+				Group:     "", // core API group
+				Resource:  "serviceaccounts",
+				Verb:      "create",
+				Namespace: project,
+			},
+		},
+	}
+
+	res, err := reqK8s.AuthorizationV1().SelfSubjectAccessReviews().Create(c.Request.Context(), ssar, v1.CreateOptions{})
+	if err != nil {
+		log.Printf("RBAC check failed for token provisioning in project %s: %v", project, err)
+		return false
+	}
+
+	return res.Status.Allowed
 }
 
 // provisionRunnerTokenForSession creates a per-session ServiceAccount, grants minimal RBAC,
