@@ -102,7 +102,14 @@ export function RepositoriesAccordion({
                   <div key={`repo-${idx}`} className="flex items-center gap-2 p-2 border rounded bg-muted/30 hover:bg-muted/50 transition-colors">
                     <GitBranch className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{repoName}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium truncate">{repoName}</div>
+                        {repo.branch && (
+                          <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 flex-shrink-0">
+                            {repo.branch}
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground truncate">{repo.url}</div>
                     </div>
                     <Button
