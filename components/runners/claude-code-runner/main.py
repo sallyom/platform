@@ -604,15 +604,16 @@ async def get_default_branch(repo_path: str) -> str:
     return "main"
 
 
-async def clone_repo_at_runtime(git_url: str, branch: str, name: str) -> tuple[bool, str]:
+async def clone_repo_at_runtime(git_url: str, branch: str, name: str) -> tuple[bool, str, bool]:
     """
     Clone a repository at runtime or add a new branch to existing repo.
 
     Behavior:
     - If repo doesn't exist: clone it (no --single-branch to support multi-branch)
-    - If repo exists: fetch and checkout the new branch
-    - If branch is empty/None: create unique ambient-session-{uuid} branch
+    - If repo exists: fetch and checkout the new branch (idempotent)
+    - If branch is empty/None: auto-generate unique ambient/<session-id> branch
     - If branch doesn't exist remotely: create it from default branch
+
 
     Args:
         git_url: Git repository URL
@@ -620,25 +621,27 @@ async def clone_repo_at_runtime(git_url: str, branch: str, name: str) -> tuple[b
         name: Name for the cloned directory (derived from URL if empty)
 
     Returns:
-        (success, repo_dir_path) tuple
+        (success, repo_dir_path, was_newly_cloned) tuple
+        - success: True if repo is available (either newly cloned or already existed)
+        - repo_dir_path: Path to the repo directory
+        - was_newly_cloned: True only if the repo was actually cloned this time
     """
     import tempfile
     import shutil
-    import uuid
     from pathlib import Path
 
     if not git_url:
-        return False, ""
+        return False, "", False
 
     # Derive repo name from URL if not provided
     if not name:
         name = git_url.split("/")[-1].removesuffix(".git")
 
-    # Generate unique branch name if not specified
+    # Generate unique branch name if not specified (only if user didn't provide one)
     if not branch or branch.strip() == "":
-        session_id = os.getenv("SESSION_ID", "unknown")
+        session_id = os.getenv("AGENTIC_SESSION_NAME", "").strip() or os.getenv("SESSION_ID", "unknown")
         branch = f"ambient/{session_id}"
-        logger.info(f"No branch specified, generated: {branch}")
+        logger.info(f"No branch specified, auto-generated: {branch}")
 
     # Repos are stored in /workspace/repos/{name} (matching hydrate.sh)
     workspace_path = os.getenv("WORKSPACE_PATH", "/workspace")
@@ -679,7 +682,7 @@ async def clone_repo_at_runtime(git_url: str, branch: str, name: str) -> tuple[b
 
             if process.returncode == 0:
                 logger.info(f"Checked out existing branch '{branch}'")
-                return True, str(repo_final)
+                return True, str(repo_final), False  # Already existed, not newly cloned
 
             # Branch doesn't exist locally, try to checkout from remote
             logger.info(f"Branch '{branch}' not found locally, trying origin/{branch}")
@@ -692,7 +695,7 @@ async def clone_repo_at_runtime(git_url: str, branch: str, name: str) -> tuple[b
 
             if process.returncode == 0:
                 logger.info(f"Checked out branch '{branch}' from origin")
-                return True, str(repo_final)
+                return True, str(repo_final), False  # Already existed, not newly cloned
 
             # Branch doesn't exist remotely, create from default branch
             logger.info(f"Branch '{branch}' not found on remote, creating from default branch")
@@ -718,22 +721,24 @@ async def clone_repo_at_runtime(git_url: str, branch: str, name: str) -> tuple[b
 
             if process.returncode == 0:
                 logger.info(f"Created new branch '{branch}' from '{default_branch}'")
-                return True, str(repo_final)
+                return True, str(repo_final), False  # Already existed, not newly cloned
             else:
                 logger.error(f"Failed to create branch: {stderr.decode()}")
-                return False, ""
+                return False, "", False
 
         except Exception as e:
             logger.error(f"Error adding branch to existing repo: {e}")
-            return False, ""
+            return False, "", False
 
     # Case 2: Repo doesn't exist - clone it
-    logger.info(f"Cloning repo '{name}' from {git_url}")
+    logger.info(f"Cloning repo '{name}' from {git_url}@{branch}")
+
+    # Create temp directory for clone
     temp_dir = Path(tempfile.mkdtemp(prefix="repo-clone-"))
 
     try:
-        # Clone without --single-branch and without --depth to support multi-branch workflows
-        # Note: --depth=1 prevents checking out other branches
+        # Clone without --single-branch to support multi-branch workflows
+        # No --depth=1 to allow full branch operations
         process = await asyncio.create_subprocess_exec(
             "git", "clone",
             clone_url, str(temp_dir),
@@ -749,11 +754,11 @@ async def clone_repo_at_runtime(git_url: str, branch: str, name: str) -> tuple[b
             if gitlab_token:
                 error_msg = error_msg.replace(gitlab_token, "***REDACTED***")
             logger.error(f"Failed to clone repo: {error_msg}")
-            return False, ""
+            return False, "", False
 
         logger.info("Clone successful, checking out requested branch...")
 
-        # Try to checkout requested branch
+        # Try to checkout requested/auto-generated branch
         process = await asyncio.create_subprocess_exec(
             "git", "-C", str(temp_dir), "checkout", branch,
             stdout=asyncio.subprocess.PIPE,
@@ -771,16 +776,18 @@ async def clone_repo_at_runtime(git_url: str, branch: str, name: str) -> tuple[b
             )
             await process.communicate()
 
+
         # Move to final location
+        logger.info("Moving to final location...")
         repo_final.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(temp_dir), str(repo_final))
 
         logger.info(f"Repo '{name}' ready at {repo_final} on branch '{branch}'")
-        return True, str(repo_final)
+        return True, str(repo_final), True  # Newly cloned
 
     except Exception as e:
         logger.error(f"Error cloning repo: {e}")
-        return False, ""
+        return False, "", False
     finally:
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
@@ -874,35 +881,20 @@ async def add_repo(request: Request):
         name = url.split("/")[-1].removesuffix(".git")
     
     # Clone the repository at runtime
-    success, repo_path = await clone_repo_at_runtime(url, branch, name)
+    success, repo_path, was_newly_cloned = await clone_repo_at_runtime(url, branch, name)
     if not success:
         raise HTTPException(status_code=500, detail=f"Failed to clone repository: {url}")
-    
-    # Update REPOS_JSON env var
-    repos_json = os.getenv("REPOS_JSON", "[]")
-    try:
-        repos = json.loads(repos_json) if repos_json else []
-    except:
-        repos = []
 
-    # Update or add repo (deduplicate by URL)
-    # Find existing entry by URL
-    found = False
-    for i, repo in enumerate(repos):
-        if repo.get("input", {}).get("url") == url:
-            # Update existing entry with new branch
-            repos[i] = {
-                "name": name,
-                "input": {
-                    "url": url,
-                    "branch": branch
-                }
-            }
-            found = True
-            logger.info(f"Updated existing repo '{name}' to branch '{branch}'")
-            break
+    # Only update state and trigger notification if repo was newly cloned
+    # This prevents duplicate notifications when both backend and operator call this endpoint
+    if was_newly_cloned:
+        # Update REPOS_JSON env var
+        repos_json = os.getenv("REPOS_JSON", "[]")
+        try:
+            repos = json.loads(repos_json) if repos_json else []
+        except:
+            repos = []
 
-    if not found:
         # Add new repo
         repos.append({
             "name": name,
@@ -911,20 +903,21 @@ async def add_repo(request: Request):
                 "branch": branch
             }
         })
-        logger.info(f"Added new repo '{name}' with branch '{branch}'")
 
-    os.environ["REPOS_JSON"] = json.dumps(repos)
-    
-    # Reset adapter state to force reinitialization on next run
-    _adapter_initialized = False
-    adapter._first_run = True
-    
-    logger.info(f"Repo '{name}' added and cloned, adapter will reinitialize on next run")
-    
-    # Trigger a notification to Claude about the new repository
-    asyncio.create_task(trigger_repo_added_notification(name, url))
-    
-    return {"message": "Repository added", "name": name, "path": repo_path}
+        os.environ["REPOS_JSON"] = json.dumps(repos)
+
+        # Reset adapter state to force reinitialization on next run
+        _adapter_initialized = False
+        adapter._first_run = True
+
+        logger.info(f"Repo '{name}' added and cloned, adapter will reinitialize on next run")
+
+        # Trigger a notification to Claude about the new repository
+        asyncio.create_task(trigger_repo_added_notification(name, url))
+    else:
+        logger.info(f"Repo '{name}' already existed, skipping notification (idempotent call)")
+
+    return {"message": "Repository added", "name": name, "path": repo_path, "newly_cloned": was_newly_cloned}
 
 
 async def trigger_repo_added_notification(repo_name: str, repo_url: str):
