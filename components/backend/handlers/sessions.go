@@ -555,7 +555,7 @@ func CreateSession(c *gin.Context) {
 
 	// Generate unique name
 	timestamp := time.Now().Unix()
-	name := fmt.Sprintf("ambient-%d", timestamp%10000)
+	name := fmt.Sprintf("ambient-%d", timestamp)
 
 	// Create the custom resource
 	// Metadata

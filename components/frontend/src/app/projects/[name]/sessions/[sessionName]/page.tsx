@@ -1700,7 +1700,7 @@ export default function ProjectSessionDetailPage({
                                       key={`${opt.type}:${opt.path}`}
                                       value={`${opt.type}:${opt.path}`}
                                     >
-                                      <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-2 flex-wrap w-full">
                                         {opt.type === "artifacts" && (
                                           <Folder className="h-3 w-3" />
                                         )}
@@ -1717,7 +1717,7 @@ export default function ProjectSessionDetailPage({
                                           {opt.name}
                                         </span>
                                         {branchName && (
-                                          <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                                          <Badge variant="outline" className="text-xs px-1.5 py-0.5 max-w-full break-words whitespace-normal bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
                                             {branchName}
                                           </Badge>
                                         )}
