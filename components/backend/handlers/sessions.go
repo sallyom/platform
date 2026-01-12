@@ -3133,14 +3133,32 @@ func GetReposStatus(c *gin.Context) {
 	project := c.Param("projectName")
 	session := c.Param("sessionName")
 
-	k8sClt, _ := GetK8sClientsForRequest(c)
+	k8sClt, dynClt := GetK8sClientsForRequest(c)
 	if k8sClt == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or missing token"})
 		c.Abort()
 		return
 	}
 
+	// Verify user has access to the session using user-scoped K8s client
+	// This ensures RBAC is enforced before we call the runner
+	gvr := GetAgenticSessionV1Alpha1Resource()
+	_, err := dynClt.Resource(gvr).Namespace(project).Get(context.TODO(), session, v1.GetOptions{})
+	if errors.IsNotFound(err) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+		return
+	}
+	if err != nil {
+		log.Printf("GetReposStatus: failed to verify session access: %v", err)
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
 	// Call runner's /repos/status endpoint directly
+	// Authentication flow:
+	// 1. Backend validated user has access to session (above)
+	// 2. Backend calls runner as trusted internal service (no auth header forwarding)
+	// 3. Runner trusts backend's validation
 	// Port 8001 matches AG-UI Service defined in operator (sessions.go:1384)
 	// If changing this port, also update: operator containerPort, Service port, and AGUI_PORT env
 	runnerURL := fmt.Sprintf("http://session-%s.%s.svc.cluster.local:8001/repos/status", session, project)
@@ -3151,9 +3169,8 @@ func GetReposStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
 		return
 	}
-	if v := c.GetHeader("Authorization"); v != "" {
-		req.Header.Set("Authorization", v)
-	}
+	// NOTE: Do NOT forward Authorization header to runner (matches pattern of AddWorkflow, AddRepository, RemoveRepo)
+	// Runner is treated as a trusted backend service; RBAC enforcement happens in backend
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
