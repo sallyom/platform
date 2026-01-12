@@ -139,7 +139,7 @@ export function RepositoriesAccordion({
                         <div className="flex items-center gap-2 flex-wrap">
                           <div className="text-sm font-medium truncate">{repoName}</div>
                           {currentBranch && (
-                            <Badge variant="outline" className="text-xs px-1.5 py-0.5 max-w-full break-words whitespace-normal bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                            <Badge variant="outline" className="text-xs px-1.5 py-0.5 max-w-full !whitespace-normal !overflow-visible break-words bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
                               {currentBranch}
                             </Badge>
                           )}

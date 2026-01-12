@@ -1717,7 +1717,7 @@ export default function ProjectSessionDetailPage({
                                           {opt.name}
                                         </span>
                                         {branchName && (
-                                          <Badge variant="outline" className="text-xs px-1.5 py-0.5 max-w-full break-words whitespace-normal bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                                          <Badge variant="outline" className="text-xs px-1.5 py-0.5 max-w-full !whitespace-normal !overflow-visible break-words bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
                                             {branchName}
                                           </Badge>
                                         )}
