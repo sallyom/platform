@@ -1666,7 +1666,7 @@ export default function ProjectSessionDetailPage({
                                 if (option) setSelectedDirectory(option);
                               }}
                             >
-                              <SelectTrigger className="w-[250px] h-8">
+                              <SelectTrigger className="w-[300px] min-h-[2.5rem]">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -1699,6 +1699,7 @@ export default function ProjectSessionDetailPage({
                                     <SelectItem
                                       key={`${opt.type}:${opt.path}`}
                                       value={`${opt.type}:${opt.path}`}
+                                      className="py-2"
                                     >
                                       <div className="flex items-center gap-2 flex-wrap w-full">
                                         {opt.type === "artifacts" && (
