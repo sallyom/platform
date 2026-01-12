@@ -16,7 +16,7 @@ type AddContextModalProps = {
   onAddRepository: (url: string, branch: string, autoPush?: boolean) => Promise<void>;
   onUploadFile?: () => void;
   isLoading?: boolean;
-  sessionName?: string;
+  autoBranch?: string;   // Auto-generated branch from backend (single source of truth)
 };
 
 export function AddContextModal({
@@ -25,27 +25,28 @@ export function AddContextModal({
   onAddRepository,
   onUploadFile,
   isLoading = false,
-  sessionName,
+  autoBranch,
 }: AddContextModalProps) {
   const [contextUrl, setContextUrl] = useState("");
-  const [contextBranch, setContextBranch] = useState("main");
+  const [contextBranch, setContextBranch] = useState("");  // Empty = use auto-generated branch
   const [autoPush, setAutoPush] = useState(false);
 
   const handleSubmit = async () => {
     if (!contextUrl.trim()) return;
 
-    const defaultBranch = sessionName ? `sessions/${sessionName}` : 'main';
+    // Use autoBranch from backend (single source of truth), or empty to let runner auto-generate
+    const defaultBranch = autoBranch || '';
     await onAddRepository(contextUrl.trim(), contextBranch.trim() || defaultBranch, autoPush);
 
     // Reset form
     setContextUrl("");
-    setContextBranch("main");
+    setContextBranch("");
     setAutoPush(false);
   };
 
   const handleCancel = () => {
     setContextUrl("");
-    setContextBranch("main");
+    setContextBranch("");
     setAutoPush(false);
     onOpenChange(false);
   };
@@ -85,7 +86,8 @@ export function AddContextModal({
             <Label htmlFor="context-branch">Branch (optional)</Label>
             <Input
               id="context-branch"
-              placeholder={sessionName ? `sessions/${sessionName}` : "main"}
+              // Use autoBranch from backend (single source of truth)
+              placeholder={autoBranch}
               value={contextBranch}
               onChange={(e) => setContextBranch(e.target.value)}
             />

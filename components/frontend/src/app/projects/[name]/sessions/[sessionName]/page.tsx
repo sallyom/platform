@@ -2013,7 +2013,7 @@ export default function ProjectSessionDetailPage({
         }}
         onUploadFile={() => setUploadModalOpen(true)}
         isLoading={addRepoMutation.isPending}
-        sessionName={sessionName}
+        autoBranch={session?.autoBranch}
       />
 
       <UploadFileModal

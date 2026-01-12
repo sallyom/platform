@@ -109,6 +109,9 @@ export type AgenticSession = {
   };
   spec: AgenticSessionSpec;
   status?: AgenticSessionStatus;
+  // Computed field from backend - auto-generated branch name
+  // IMPORTANT: Keep in sync with backend (sessions.go) and runner (main.py)
+  autoBranch?: string;
 };
 
 export type CreateAgenticSessionRequest = {
@@ -130,6 +133,7 @@ export type CreateAgenticSessionResponse = {
   message: string;
   name: string;
   uid: string;
+  autoBranch: string;  // Auto-generated branch name (e.g., "ambient/1234567890")
 };
 
 export type GetAgenticSessionResponse = {

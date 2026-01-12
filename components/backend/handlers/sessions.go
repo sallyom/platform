@@ -409,6 +409,10 @@ func ListSessions(c *gin.Context) {
 			session.Status = parseStatus(status)
 		}
 
+		// Compute auto-branch name from session name (single source of truth)
+		// IMPORTANT: Keep in sync with runner (main.py) and frontend (add-context-modal.tsx)
+		session.AutoBranch = fmt.Sprintf("ambient/%s", item.GetName())
+
 		sessions = append(sessions, session)
 	}
 
@@ -553,9 +557,10 @@ func CreateSession(c *gin.Context) {
 		timeout = *req.Timeout
 	}
 
-	// Generate unique name
+	// Generate unique name (timestamp-based)
+	// Note: Runner will create branch as "ambient/{session-name}"
 	timestamp := time.Now().Unix()
-	name := fmt.Sprintf("ambient-%d", timestamp)
+	name := fmt.Sprintf("%d", timestamp)
 
 	// Create the custom resource
 	// Metadata
@@ -721,10 +726,15 @@ func CreateSession(c *gin.Context) {
 	// Runner token provisioning is handled by the operator when creating the pod.
 	// This ensures consistent behavior whether sessions are created via API or kubectl.
 
+	// Generate the auto-branch name that runner will create if user doesn't provide a branch
+	// IMPORTANT: Keep in sync with runner (main.py) and frontend (add-context-modal.tsx)
+	autoBranch := fmt.Sprintf("ambient/%s", name)
+
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Agentic session created successfully",
-		"name":    name,
-		"uid":     created.GetUID(),
+		"message":    "Agentic session created successfully",
+		"name":       name,
+		"uid":        created.GetUID(),
+		"autoBranch": autoBranch,
 	})
 }
 
@@ -772,6 +782,10 @@ func GetSession(c *gin.Context) {
 	if status, ok := item.Object["status"].(map[string]interface{}); ok {
 		session.Status = parseStatus(status)
 	}
+
+	// Compute auto-branch name from session name (single source of truth)
+	// IMPORTANT: Keep in sync with runner (main.py) and frontend (add-context-modal.tsx)
+	session.AutoBranch = fmt.Sprintf("ambient/%s", sessionName)
 
 	c.JSON(http.StatusOK, session)
 }

@@ -638,6 +638,7 @@ async def clone_repo_at_runtime(git_url: str, branch: str, name: str) -> tuple[b
         name = git_url.split("/")[-1].removesuffix(".git")
 
     # Generate unique branch name if not specified (only if user didn't provide one)
+    # IMPORTANT: Keep in sync with backend (sessions.go) and frontend (add-context-modal.tsx)
     if not branch or branch.strip() == "":
         session_id = os.getenv("AGENTIC_SESSION_NAME", "").strip() or os.getenv("SESSION_ID", "unknown")
         branch = f"ambient/{session_id}"
