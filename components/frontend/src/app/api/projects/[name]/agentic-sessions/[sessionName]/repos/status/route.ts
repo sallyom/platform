@@ -16,6 +16,13 @@ export async function GET(
     }
   );
 
+  if (!resp.ok) {
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch repos status', repos: [] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   const data = await resp.text();
   return new Response(data, {
     status: resp.status,

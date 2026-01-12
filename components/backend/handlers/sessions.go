@@ -1471,19 +1471,34 @@ func RemoveRepo(c *gin.Context) {
 	}
 
 	// Also check status.reconciledRepos for repos added directly to runner
-	status, _ := item.Object["status"].(map[string]interface{})
-	reconciledRepos, _ := status["reconciledRepos"].([]interface{})
+	status, found, err := unstructured.NestedMap(item.Object, "status")
+	if !found || err != nil {
+		log.Printf("Failed to get status: %v", err)
+		status = make(map[string]interface{})
+	}
+
+	reconciledRepos, found, err := unstructured.NestedSlice(status, "reconciledRepos")
+	if !found || err != nil {
+		log.Printf("Failed to get reconciledRepos: %v", err)
+		reconciledRepos = []interface{}{}
+	}
+
 	foundInReconciled := false
 	for _, r := range reconciledRepos {
-		rm, _ := r.(map[string]interface{})
-		name, _ := rm["name"].(string)
-		if name == repoName {
+		rm, ok := r.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		name, found, err := unstructured.NestedString(rm, "name")
+		if found && err == nil && name == repoName {
 			foundInReconciled = true
 			break
 		}
+
 		// Also try matching by URL
-		url, _ := rm["url"].(string)
-		if DeriveRepoFolderFromURL(url) == repoName {
+		url, found, err := unstructured.NestedString(rm, "url")
+		if found && err == nil && DeriveRepoFolderFromURL(url) == repoName {
 			foundInReconciled = true
 			break
 		}
@@ -1491,7 +1506,7 @@ func RemoveRepo(c *gin.Context) {
 
 	// Always call runner to remove from filesystem (if session is running)
 	// Do this BEFORE checking if repo exists in CR, because it might only be on filesystem
-	phase, _ := status["phase"].(string)
+	phase, _, _ := unstructured.NestedString(status, "phase")
 	runnerRemoved := false
 	if phase == "Running" {
 		runnerURL := fmt.Sprintf("http://session-%s.%s.svc.cluster.local:8001/repos/remove", sessionName, project)
