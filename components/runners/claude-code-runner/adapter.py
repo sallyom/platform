@@ -1234,7 +1234,14 @@ class ClaudeCodeAdapter:
 
                     # Extract simple format fields
                     url = str(it.get('url') or '').strip()
-                    branch = str(it.get('branch') or 'main').strip()
+                    # Auto-generate branch from session name if not provided
+                    branch_from_json = it.get('branch')
+                    if branch_from_json and str(branch_from_json).strip():
+                        branch = str(branch_from_json).strip()
+                    else:
+                        # Fallback: use AGENTIC_SESSION_NAME to match backend logic
+                        session_id = os.getenv('AGENTIC_SESSION_NAME', '').strip()
+                        branch = f"ambient/{session_id}" if session_id else 'main'
                     # Parse autoPush as boolean, defaulting to False for invalid types
                     auto_push_raw = it.get('autoPush', False)
                     auto_push = auto_push_raw if isinstance(auto_push_raw, bool) else False

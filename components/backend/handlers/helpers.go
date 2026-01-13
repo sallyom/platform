@@ -48,6 +48,14 @@ func RetryWithBackoff(maxRetries int, initialDelay, maxDelay time.Duration, oper
 	return fmt.Errorf("operation failed after %d retries: %w", maxRetries, lastErr)
 }
 
+// ComputeAutoBranch generates the auto-branch name from a session name
+// This is the single source of truth for auto-branch naming in the backend
+// IMPORTANT: Keep pattern in sync with runner (main.py)
+// Pattern: ambient/{session-name}
+func ComputeAutoBranch(sessionName string) string {
+	return fmt.Sprintf("ambient/%s", sessionName)
+}
+
 // ValidateSecretAccess checks if the user has permission to perform the given verb on secrets
 // Returns an error if the user lacks the required permission
 // Accepts kubernetes.Interface for compatibility with dependency injection in tests
